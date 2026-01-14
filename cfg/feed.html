@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="robots" content="noindex" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+    <title>CANFORGEN - Feed Generator</title>
+
+    <!-- Optimization -->
+    <link rel="dns-prefetch" href="https://www.canada.ca">
+
+    <!-- Style -->
+    <link rel="icon" href="https://www.canada.ca/etc/designs/canada/wet-boew/assets/favicon.ico" type="image/x-icon" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.2.0/css/bootstrap.min.css">
+</head>
+
+<body>
+    <header>
+        <nav class="navbar bg-dark shadow-sm">
+            <div class="container-fluid px-4">
+                <div class="navbar-brand">
+                    <ol class="breadcrumb mb-1">
+                        <li class="breadcrumb-item"><a href="https://github.com/dnd-mdn" class="text-muted">dnd-mdn</a></li>
+                        <li class="breadcrumb-item"><a href="../index.html" class="text-muted">Tools</a></li>
+                        <li class="breadcrumb-item"><a href="../index.html?c=Maple Leaf" class="text-muted">Maple Leaf</a></li>
+                        <li class="breadcrumb-item active text-white">Feed Generator 2</li>
+                    </ol>
+                </div>
+            </div>
+        </nav>
+    </header>
+    <main>
+        <div class="container my-5">
+            <h1 class="visually-hidden">Feed Generator</h1>
+            <p>Compiles a listing of Maple Leaf articles used in the <a href="https://www.canada.ca/en/department-national-defence/corporate/policies-standards/canforgens/search.html" target="_blank">search</a> table.</p>
+            <div class="row">
+                <div class="col-md-6">
+                    <h2 class="h5 mt-3">Type of update</h2>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="type" value="smart" checked="checked">
+                        <label class="form-check-label" for="flexCheckDefault">Smart <small class="text-muted"> - New & modified (recommended)</small></label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="type" value="month">
+                        <label class="form-check-label" for="flexCheckDefault">Month <small class="text-muted"> - Modified in the past month</small></label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="type" value="year">
+                        <label class="form-check-label" for="flexCheckDefault">Year <small class="text-muted"> - Modified in the past year</small></label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="type" value="all">
+                        <label class="form-check-label" for="flexCheckDefault">All <small class="text-muted"> - Entire feed</small></label>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <h2 class="h5 mt-3">File status</h2>
+                    <div id="feedstatus"></div>
+                </div>
+            </div>
+            <h2 class="h5 mt-4 mb-3">Progress</h2>
+            <div id="progressbar" class="progress mb-2 mt-3" style="height: 5px">
+                <div id="complete" class="progress-bar" style="width:0%"></div>
+                <div id="active" class="progress-bar bg-warning" style="width:0%"></div>
+            </div>
+            <p id="status"><a href="javascript:main()">Click here to start</a></p>
+            <div id="warnings" class="d-none">
+                <h2 class="h5 mt-4">Warnings</h2>
+                <ol></ol>
+            </div>
+            <h2 class="h5 mt-4">Instructions</h2>
+            <ol class="pl-3">
+                <li>Run the tool above. Two JSON files will be generated and downloaded automatically</li>
+                <li>Upload both files to AEM (replacing existing files) in <a href="https://author-canada-prod.adobecqms.net/assets.html/content/dam/dnd-mdn/documents/json" target="_blank">/content/dam/dnd-mdn/documents/json/</a></li>
+                <li>Select both files and publish them</li>
+                <li>Refresh this page to verify that the file status has changed</li>
+            </ol>
+        </div>
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-timeago/1.6.7/jquery.timeago.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/utf8/3.0.0/utf8.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/downloadjs/1.4.8/download.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/async/3.2.2/async.min.js"></script>
+    <script src="../lib/aem-ml-simple.js?v=2022-04-20"></script>
+    <script>
+
+        // Force select default option
+        $('input[value="smart"]').click()
+
+        // Configuration
+        var config = {
+            roots: [
+                'en/department-national-defence/corporate/policies-standards/canforgens',
+                'fr/ministere-defense-nationale/organisation/politiques-normes/canforgen',
+            ],
+            feeds: [
+                'content/dam/dnd-mdn/documents/json/canforgens/cfg-en.json',
+                'content/dam/dnd-mdn/documents/json/canforgens/cfg-fr.json',
+            ],
+            preFilter: function (node) {
+                return /\/\d{4}\/\d{3}\-$/.test(node.path)
+            },
+        }
+
+        aem.preFilter = config.preFilter
+        aem.placeholders = config.placeholders
+
+
+        config.feeds.forEach(function (url) {
+            $('#feedstatus').append('<p class="mb-0"><a href="' + aem.domain + url + '" target="_blank">' + url.replace('content/dam/dnd-mdn/documents/json/', '') + '</a> - <span data-feed="' + url + '">...</span></p>')
+            aem.assetMeta(url).then(function (jcr) {
+                var html = jcr['dam:assetState'] + ' '
+                html += '<abbr title="' + jcr['jcr:lastModified'] + '" class="text-primary">' + $.timeago(new Date(jcr['jcr:lastModified'])) + '</abbr>'
+                html += ' by <span class="text-primary">' + jcr['jcr:lastModifiedBy'] + '</span>'
+
+                $('[data-feed="' + url + '"]').html(html)
+            }, function (e) {
+                $('[data-feed="' + url + '"]').html('Error (' + e + ')')
+            })
+        })
+
+        var start = 0
+
+        function status(message) {
+            if (message) {
+                $('#status').html(message)
+            }
+
+            var p = aem.progress()
+            $('#complete').width(p.complete)
+            $('#active').width(p.active)
+        }
+
+
+        function warn(node, details) {
+            $('#warnings').removeClass('d-none')
+            $('#warnings ol').append('<li><a href="' + aem.domain + node.path + '.html" target="_blank">' + node.path + '</a><br/>' + details + '</li>')
+            console.warn(node.path, details)
+            return false
+        }
+
+        function main() {
+
+            start = new Date().getTime()
+            var type = $('input[name="type"]').prop('disabled', true).filter(':checked').val()
+
+
+            // Load sitemaps & feeds
+            status('Downloading node lists')
+            var chain = aem.addRoot(config.roots).addFeed(config.feeds).wait()
+
+            // Remove deleted nodes
+            chain.then(function () {
+                aem.each(function (node) {
+                    if (!node.lastmod) {
+                        return warn(node, 'Migrated node needs republishing')
+                    }
+                    return Boolean(node.lastmod)
+                })
+            })
+
+            if (type === 'smart') {
+                // Option: clear data for modified nodes (and todays nodes just incase)
+                chain.then(function () {
+                    aem.each(function (node) {
+                        if (node.live) {
+                            var updated = typeof node.live[5] === 'number' ? node.live[5] : node.live[6]
+                            if (node.lastmod > updated - 86400) {
+                                delete node.live
+                            }
+                        }
+                    })
+                })
+            } else if (type === 'month') {
+                // Option: modified in last 30 days
+                chain.then(function () {
+                    var time = (Date.now() / 1000) - 2592000
+                    aem.each(function (node) {
+                        if (node.live && node.lastmod > time) {
+                            delete node.live
+                        }
+                    })
+                })
+            } else if (type === 'year') {
+                // Option: modified in last 365 days
+                chain.then(function () {
+                    var time = (Date.now() / 1000) - 31536000
+                    aem.each(function (node) {
+                        if (node.live && node.lastmod > time) {
+                            delete node.live
+                        }
+                    })
+                })
+            } else if (type === 'all') {
+                // Option: all nodes
+                chain.then(function () {
+                    aem.each(function (node) {
+                        if (node.live) {
+                            delete node.live
+                        }
+                    })
+                })
+            }
+
+            // Load node data
+            chain.then(function () {
+                status('Downloading nodes')
+
+                // Find nodes to load
+                var list = aem.nodes().filter(function (path) {
+                    return !aem.data[path].live
+                })
+
+                return aem.meta(list).wait()
+
+            }).then(function () {
+
+                // Verify peers are loaded
+                aem.each(function (node) {
+                    if (node.peer && aem.data[node.peer] && !aem.data[node.peer].peer) {
+                        aem.meta(node.peer)
+                    }
+                })
+
+                if (!aem.idle()) {
+                    return aem.wait()
+                }
+
+            }).then(function () {
+
+                // Check for content issues
+                aem.each(function (node) {
+                    if (node && node.peer) {
+                        var peer = aem.data[node.peer]
+
+                        if (!peer) {
+                            return warn(node, 'peer not found')
+                        } else if (node.path !== peer.peer) {
+                            return warn(node, 'links between peers do not match')
+                        } else if (node['jcr:language'] !== node.path.slice(0, 2)) {
+                            return warn(node, 'page language is inconsistent with URL path')
+                        } else if (!node.gcDescription || !node.gcKeywords) {
+                            delete aem.data[node.peer]
+                            return warn(node, 'missing description or keywords metadata')
+                        } else if (!node.gcOGImage && peer.gcOGImage) {
+                            delete aem.data[node.peer]
+                            return warn(node, 'thumbnail image is set in only one language')
+                        } else if (!aem.date(node, peer)) {
+                            delete aem.data[node.peer]
+                            return warn(node, 'unable to determine the date modified')
+                        }
+
+                    } else if (node && !node.peer && !node.live) {
+                        return warn(node, 'failed to download metadata')
+                    }
+
+                }).each(function(node) {
+                    if (node.peer && !aem.data[node.peer]) {
+                        return false
+                    }
+                })
+
+            }).then(function () {
+                status('Formatting feed data')
+                var now = Math.floor(Date.now() / 1000)
+
+                aem.each(function (node) {
+                    if (node.peer) {
+                        var peer = aem.data[node.peer]
+                        var realdate = aem.date(node, peer)
+
+                        node.live = [
+                            node.gcOGImage ? '<img src="' + node.gcOGImage + '"/>' : null,
+                            '<a href="/' + node.path + '.html">' + node['jcr:title'] + '</a>',
+                            node.gcDescription.replace(/[\n\r]+/g, ' '),
+                            node.gcKeywords.replace(/(\s+,|,\s+)/g, ','),
+                            Math.floor(realdate.getTime() / 1000),
+                            realdate.toISOString().substr(0, 10),
+                            now
+                        ]
+
+                    }
+                })
+
+            }).then(function () {
+                status('Exporting feeds')
+                feeds = { en: [], fr: [] }
+
+                // Sort nodes into feeds by language
+                aem.each(function (node) {
+                    if (node.live) {
+                        var lang = node['jcr:language'] || node.path.slice(0, 2)
+                        feeds[lang].push(node.live)
+                    }
+                })
+
+                for (lang in feeds) {
+                    // Sort feed by date, newest first
+                    feeds[lang].sort(function (a, b) { return b[4] - a[4] })
+
+                    // Format json
+                    feeds[lang] = utf8.encode(JSON.stringify({ data: feeds[lang] }, null, 1))
+                }
+
+                // Initiate file downloads
+                for (lang in feeds) {
+                    download(feeds[lang], 'maple-' + lang + '.json', 'text/plain;charset=UTF-8;')
+                }
+            })
+
+        }
+
+        setInterval(status, 250)
+
+    </script>
+
+</body>
+
+</html>
