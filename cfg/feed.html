@@ -24,7 +24,7 @@
                     <ol class="breadcrumb mb-1">
                         <li class="breadcrumb-item"><a href="https://github.com/dnd-mdn" class="text-muted">dnd-mdn</a></li>
                         <li class="breadcrumb-item"><a href="../index.html" class="text-muted">Tools</a></li>
-                        <li class="breadcrumb-item"><a href="../index.html?c=Maple Leaf" class="text-muted">Maple Leaf</a></li>
+                        <li class="breadcrumb-item"><a href="../index.html?c=CANFORGENS" class="text-muted">CANFORGENS</a></li>
                         <li class="breadcrumb-item active text-white">Feed Generator 2</li>
                     </ol>
                 </div>
@@ -34,7 +34,7 @@
     <main>
         <div class="container my-5">
             <h1 class="visually-hidden">Feed Generator</h1>
-            <p>Compiles a listing of Maple Leaf articles used in the <a href="https://www.canada.ca/en/department-national-defence/corporate/policies-standards/canforgens/search.html" target="_blank">search</a> table.</p>
+            <p>Compiles a listing of CANFORGEN articles used in the <a href="https://www.canada.ca/en/department-national-defence/corporate/policies-standards/canforgens/search.html" target="_blank">search</a> table.</p>
             <div class="row">
                 <div class="col-md-6">
                     <h2 class="h5 mt-3">Type of update</h2>
@@ -73,7 +73,7 @@
             <h2 class="h5 mt-4">Instructions</h2>
             <ol class="pl-3">
                 <li>Run the tool above. Two JSON files will be generated and downloaded automatically</li>
-                <li>Upload both files to AEM (replacing existing files) in <a href="https://author-canada-prod.adobecqms.net/assets.html/content/dam/dnd-mdn/documents/json" target="_blank">/content/dam/dnd-mdn/documents/json/</a></li>
+                <li>Upload both files to AEM (replacing existing files) in <a href="https://author-canada-prod.adobecqms.net/assets.html/content/dam/dnd-mdn/documents/json/canforgens" target="_blank">/content/dam/dnd-mdn/documents/json/canforgens</a></li>
                 <li>Select both files and publish them</li>
                 <li>Refresh this page to verify that the file status has changed</li>
             </ol>
@@ -102,7 +102,7 @@
                 'content/dam/dnd-mdn/documents/json/canforgens/cfg-fr.json',
             ],
             preFilter: function (node) {
-                return /\/\d{4}\/\d{3}\-$/.test(node.path)
+                return /\/\d{4}\/\d{3}\-[^\/]+$/.test(node.path)
             },
         }
 
@@ -115,8 +115,7 @@
             aem.assetMeta(url).then(function (jcr) {
                 var html = jcr['dam:assetState'] + ' '
                 html += '<abbr title="' + jcr['jcr:lastModified'] + '" class="text-primary">' + $.timeago(new Date(jcr['jcr:lastModified'])) + '</abbr>'
-                html += ' by <span class="text-primary">' + jcr['jcr:lastModifiedBy'] + '</span>'
-
+               
                 $('[data-feed="' + url + '"]').html(html)
             }, function (e) {
                 $('[data-feed="' + url + '"]').html('Error (' + e + ')')
@@ -168,7 +167,7 @@
                 chain.then(function () {
                     aem.each(function (node) {
                         if (node.live) {
-                            var updated = typeof node.live[5] === 'number' ? node.live[5] : node.live[6]
+                            var updated = typeof node.live[6] === 'number' ? node.live[6] : node.live[7]
                             if (node.lastmod > updated - 86400) {
                                 delete node.live
                             }
@@ -244,11 +243,8 @@
                         } else if (node['jcr:language'] !== node.path.slice(0, 2)) {
                             return warn(node, 'page language is inconsistent with URL path')
                         } else if (!node.gcDescription || !node.gcKeywords) {
-                            delete aem.data[node.peer]
-                            return warn(node, 'missing description or keywords metadata')
-                        } else if (!node.gcOGImage && peer.gcOGImage) {
-                            delete aem.data[node.peer]
-                            return warn(node, 'thumbnail image is set in only one language')
+                            //delete aem.data[node.peer]
+                            //return warn(node, 'missing description or keywords metadata')
                         } else if (!aem.date(node, peer)) {
                             delete aem.data[node.peer]
                             return warn(node, 'unable to determine the date modified')
@@ -272,9 +268,11 @@
                     if (node.peer) {
                         var peer = aem.data[node.peer]
                         var realdate = aem.date(node, peer)
+                        var id = node.path.match(/(\d{4})\/(\d{3})/)
 
                         node.live = [
-                            node.gcOGImage ? '<img src="' + node.gcOGImage + '"/>' : null,
+                            id[2] + '/' + id[1],
+                            node.gcContributor || null,
                             '<a href="/' + node.path + '.html">' + node['jcr:title'] + '</a>',
                             node.gcDescription.replace(/[\n\r]+/g, ' '),
                             node.gcKeywords.replace(/(\s+,|,\s+)/g, ','),
@@ -308,7 +306,7 @@
 
                 // Initiate file downloads
                 for (lang in feeds) {
-                    download(feeds[lang], 'maple-' + lang + '.json', 'text/plain;charset=UTF-8;')
+                    download(feeds[lang], 'cfg-' + lang + '.json', 'text/plain;charset=UTF-8;')
                 }
             })
 
