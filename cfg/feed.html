@@ -102,7 +102,7 @@
                 'content/dam/dnd-mdn/documents/json/canforgens/cfg-fr.json',
             ],
             preFilter: function (node) {
-                return /\/\d{4}\/\d{3}\-[^\/]+$/.test(node.path)
+                return node && /\/\d{4}\/[^\/]+$/.test(node.path)
             },
         }
 
